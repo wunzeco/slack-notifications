@@ -42,13 +42,32 @@ class UserManagementConnector @Inject()(
   }
 
   def getAllUsers(implicit hc: HeaderCarrier): Future[List[UmpUser]] =
-    http.GET[List[UmpUser]](s"$url/v2/organisations/users")
+    http
+      .GET[HttpResponse](s"$url/v2/organisations/users")
+      .map { resp =>
+        (for {
+          json  <- Option(resp.json)
+          users <- (json \ "users").asOpt[List[UmpUser]]
+        } yield users).getOrElse(Nil)
+      }
 
   def getTeamsForUser(ldapUsername: String)(implicit hc: HeaderCarrier): Future[List[TeamDetails]] =
-    http.GET[List[TeamDetails]](s"$url/v2/organisations/users/$ldapUsername/teams")
+    http.GET[HttpResponse](s"$url/v2/organisations/users/$ldapUsername/teams").map { resp =>
+      val maybeTeams =
+        for {
+          json  <- Option(resp.json)
+          teams <- (json \ "teams").asOpt[List[TeamDetails]]
+        } yield teams
+      maybeTeams.getOrElse(Nil)
+    }
 
   def getTeamDetails(teamName: String)(implicit hc: HeaderCarrier): Future[Option[TeamDetails]] =
-    http.GET[Option[TeamDetails]](s"$url/v2/organisations/teams/$teamName")
+    http.GET[HttpResponse](s"$url/v2/organisations/teams/$teamName").map { resp =>
+      for {
+        json        <- Option(resp.json)
+        teamDetails <- json.asOpt[TeamDetails]
+      } yield teamDetails
+    }
 
 }
 
@@ -65,7 +84,6 @@ object UserManagementConnector {
 
   final case class TeamDetails(
     slack: Option[String],
-    slackNotification: Option[String],
     team: String
   )
 
